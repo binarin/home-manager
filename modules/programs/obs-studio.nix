@@ -7,16 +7,17 @@ let
   cfg = config.programs.obs-studio;
   package = pkgs.obs-studio;
 
-  mkPluginEnv = packages: let
-    pluginDirs = builtins.map
-      (pkg: "${pkg}/share/obs/obs-plugins") packages;
-  in pkgs.runCommand "obs-studio-plugins" {} ''
-    mkdir $out
-    for plugin in ${builtins.concatStringsSep " "
-      (builtins.map (p: "${p}/*") pluginDirs)}; do
-      ln -s "$plugin" $out/
-    done
-  '';
+  mkPluginEnv = packages:
+    let
+      pluginDirs = map (pkg: "${pkg}/share/obs/obs-plugins") packages;
+      plugins = concatMapStringsSep " " (p: "${p}/*") pluginDirs;
+    in
+      pkgs.runCommand "obs-studio-plugins" {} ''
+        mkdir $out
+        for plugin in ${plugins}; do
+          ln -s "$plugin" $out/
+        done
+      '';
 
 in
 
@@ -26,12 +27,7 @@ in
   options = {
     programs.obs-studio = {
 
-      enable = mkOption {
-        default = false;
-        example = true;
-        description = "Whether to enable obs-studio.";
-        type = types.bool;
-      };
+      enable = mkEnableOption "obs-studio";
 
       plugins = mkOption {
         default = [];
@@ -43,14 +39,11 @@ in
     };
   };
 
-  config = mkIf cfg.enable (mkMerge [
-    {
-      home.packages = [ package ];
-    }
+  config = mkIf cfg.enable {
+    home.packages = [ package ];
 
-    (mkIf (cfg.plugins != []) {
-      xdg.configFile."obs-studio/plugins".source = mkPluginEnv cfg.plugins;
-    })
-
-  ]);
+    xdg.configFile."obs-studio/plugins" = mkIf (cfg.plugins != []) {
+      source = mkPluginEnv cfg.plugins;
+    };
+  };
 }
